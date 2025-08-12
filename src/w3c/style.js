@@ -28,7 +28,7 @@ function attachFixupScript() {
 
 // Creates a collection of resource hints to improve the loading performance
 // of the W3C resources.
-function createResourceHints() {
+function createResourceHints(conf) {
   /** @type {ResourceHintOption[]}  */
   const opts = [
     {
@@ -40,52 +40,33 @@ function createResourceHints() {
       href: "https://www.w3.org/scripts/TR/2021/fixup.js",
       as: "script",
     },
-    {
-      hint: "preload", // all specs include on base.css.
-      href: getStyleUrl("base.css").href,
-      as: "style",
-    },
-    {
-      hint: "preload",
-      href: getStyleUrl("dark.css").href,
-      as: "style",
-    },
-    {
-      hint: "preload", // all specs show the logo.
-      href: "https://www.w3.org/StyleSheets/TR/2021/logos/W3C",
-      as: "image",
-      corsMode: "anonymous",
-    },
   ];
+  if (!conf.noBaseCSS) {
+    opts.push(
+      {
+        hint: "preload", // all specs include on base.css.
+        href: getStyleUrl("base.css").href,
+        as: "style",
+      },
+      {
+        hint: "preload",
+        href: getStyleUrl("dark.css").href,
+        as: "style",
+      }
+    );
+  }
+  opts.push({
+    hint: "preload", // all specs show the logo.
+    href: "https://www.w3.org/StyleSheets/TR/2021/logos/W3C",
+    as: "image",
+    corsMode: "anonymous",
+  });
   const resourceHints = document.createDocumentFragment();
   for (const link of opts.map(createResourceHint)) {
     resourceHints.appendChild(link);
   }
   return resourceHints;
 }
-
-// Collect elements for insertion (document fragment)
-const elements = createResourceHints();
-
-// Opportunistically apply base style
-elements.appendChild(
-  html`<link
-    rel="stylesheet"
-    href="https://www.w3.org/StyleSheets/TR/2021/base.css"
-    class="removeOnSave"
-  />`
-);
-if (!document.head.querySelector("meta[name=viewport]")) {
-  // Make meta viewport the first element in the head.
-  elements.prepend(
-    html`<meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />`
-  );
-}
-
-document.head.prepend(elements);
 
 /**
  * @param {URL|string} linkURL
@@ -102,17 +83,43 @@ function styleMover(linkURL) {
  * @param {Conf} conf
  */
 export function run(conf) {
+  const elements = createResourceHints(conf);
+
+  if (!conf.noBaseCSS) {
+    elements.appendChild(
+      html`<link
+        rel="stylesheet"
+        href="https://www.w3.org/StyleSheets/TR/2021/base.css"
+        class="removeOnSave"
+      />`
+    );
+  }
+  if (!document.head.querySelector("meta[name=viewport]")) {
+    // Make meta viewport the first element in the head.
+    elements.prepend(
+      html`<meta
+        name="viewport"
+        content="width=device-width, initial-scale=1, shrink-to-fit=no"
+      />`
+    );
+  }
+
+  document.head.prepend(elements);
+
   // Attach W3C fixup script after we are done.
   if (!conf.noToc) {
     sub("end-all", attachFixupScript, { once: true });
   }
 
-  const finalStyleURL = getStyleUrl(getStyleFile(conf));
-  document.head.appendChild(
-    html`<link rel="stylesheet" href="${finalStyleURL.href}" />`
-  );
-  // Make sure the W3C stylesheet is the last stylesheet, as required by W3C Pub Rules.
-  sub("beforesave", styleMover(finalStyleURL));
+  const styleFile = getStyleFile(conf);
+  const finalStyleURL = getStyleUrl(styleFile);
+  if (!(conf.noBaseCSS && styleFile === "base.css")) {
+    document.head.appendChild(
+      html`<link rel="stylesheet" href="${finalStyleURL.href}" />`
+    );
+    // Make sure the W3C stylesheet is the last stylesheet, as required by W3C Pub Rules.
+    sub("beforesave", styleMover(finalStyleURL));
+  }
 
   // Add color scheme meta tag and style
   /** @type HTMLMetaElement */
@@ -122,7 +129,7 @@ export function run(conf) {
     colorScheme = html`<meta name="color-scheme" content="light" />`;
     document.head.appendChild(colorScheme);
   }
-  if (colorScheme.content.includes("dark")) {
+  if (!conf.noBaseCSS && colorScheme.content.includes("dark")) {
     const darkModeStyleUrl = getStyleUrl("dark.css");
     document.head.appendChild(
       html`<link

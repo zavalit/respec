@@ -250,6 +250,24 @@ describe("W3C - Style", () => {
     expect(linkBase.nextElementSibling).toBe(linkDarkMode);
   });
 
+  it("doesn't load base.css when noBaseCSS is set", async () => {
+    const ops = makeStandardOps({ noBaseCSS: true });
+    const doc = await makeRSDoc(ops);
+    const link = doc.querySelector(
+      `link[href="https://www.w3.org/StyleSheets/TR/2021/base.css"]`
+    );
+    expect(link).toBeNull();
+  });
+
+  it("doesn't load dark.css when noBaseCSS is set", async () => {
+    const ops = makeStandardOps({ noBaseCSS: true });
+    const doc = await makeRSDoc(ops, "spec/core/color-scheme.html");
+    const link = doc.querySelector(
+      `link[href="https://www.w3.org/StyleSheets/TR/2021/dark.css"]`
+    );
+    expect(link).toBeNull();
+  });
+
   it("shouldn't include fixup.js when noToc is set", async () => {
     const ops = makeStandardOps();
     const newProps = {
